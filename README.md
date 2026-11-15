@@ -16,7 +16,7 @@ Client -> ALB (public subnets) -> EC2 Flask app (private subnet, port 8080)
             CloudWatch alarm on BlockedRequests -> SNS e-mail
 
 S3 (documents) — SSE-KMS (customer key), versioning, Block Public Access
-CloudTrail -> S3 (management and data events)
+CloudTrail trail cabinet-trail (multi-region, management events) -> S3
 ```
 
 ## What is in this repository
@@ -41,6 +41,16 @@ The following were configured in the console during the lab and are **not** in t
 - CloudFront could not be created (`cloudfront:CreateDistribution` denied), so the ALB is the WAF target and CloudFront is documented as target architecture.
 - CloudWatch Logs for CloudTrail and WAF logging were blocked (`iam:AttachRolePolicy`), so those are documented as target architecture.
 - Systems Manager (SSM) was removed from the design on the professor's guidance.
+
+## Results
+
+| Test | Result | Evidence |
+|---|---|---|
+| Log4Shell payload on `/search` | 403, `AWSManagedRulesKnownBadInputsRuleSet`; benign requests allowed | `08a-waf-allow-benign.png`, `08b-waf-blocked-403.png` |
+| SQL injection on `/search` | 403, `AWSManagedRulesSQLiRuleSet` | `25-sqli-attack.png`, `26-sqli-block.png` |
+| Brute force on `/login` | Blocked by `RateBasedRulePOST`; CloudWatch alarm enters In alarm; SNS e-mail received | `16-waf-rate-rule-block.png`, `19-sampled-requests-rate-block.png`, `20-cloudwatch-alarm-in-alarm.png`, `21-sns-alarm-email.png` |
+| IP block response | 403, `BLOCK by cabinet-waf-alb_IPV4_Block` (manual) | `22-ipset-block-action.png` |
+| CloudTrail audit trail | Multi-region trail logging to S3; write API calls recorded (security groups, WAF, IP sets, EC2, KMS) | `27-cloudtrail-trail.png`, `28-cloudtrail-events.png` |
 
 ## Deploy the infrastructure
 
