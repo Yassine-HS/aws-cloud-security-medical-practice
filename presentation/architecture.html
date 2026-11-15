@@ -1,0 +1,23 @@
+<section id="architecture" style="background:#f6f4ef;color:#14202e;font-family:Inter, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:36px">
+<h2 style="font-family:'Space Grotesk', Inter, sans-serif;font-size:60px;font-weight:700;line-height:1.1">Un point d'entrée, des données chiffrées, tout journalisé</h2>
+<div style="display:flex;align-items:center;gap:16px">
+<div style="flex:1;background:#ffffff;padding:32px;border:1px solid #d9d5ca;border-radius:16px"><h3 style="font-size:34px;font-weight:600">Utilisateurs</h3><p style="font-size:26px;color:#4a5566">Patients, médecins, secrétaires</p></div>
+<p style="font-size:44px;width:40px">→</p>
+<div style="flex:1;background:#0f1b2d;color:#f2efe8;padding:32px;border-radius:16px"><h3 style="font-size:34px;font-weight:600">WAF + CloudFront</h3><p style="font-size:26px;color:#2fc4a8">HTTPS, règles gérées</p></div>
+<p style="font-size:44px;width:40px">→</p>
+<div style="flex:1;background:#ffffff;padding:32px;border:1px solid #d9d5ca;border-radius:16px"><h3 style="font-size:34px;font-weight:600">EC2 API (VPC)</h3><p style="font-size:26px;color:#4a5566">SG : CloudFront seul. Admin par SSM, sans port 22</p></div>
+<p style="font-size:44px;width:40px">→</p>
+<div style="flex:1;background:#ffffff;padding:32px;border:1px solid #d9d5ca;border-radius:16px"><h3 style="font-size:34px;font-weight:600">S3 documents</h3><p style="font-size:26px;color:#4a5566">SSE-KMS, versioning, accès public bloqué</p></div>
+</div>
+<div style="background:#d6efe8;padding:28px 32px;border-radius:16px"><p style="font-size:30px;font-weight:500;color:#085041">KMS : clé gérée par le client pour S3, EBS et journaux</p></div>
+<div style="display:flex;align-items:center;gap:16px">
+<div style="flex:1;background:#fbe9c9;padding:28px 32px;border-radius:16px"><p style="font-size:30px;font-weight:500;color:#633806">CloudTrail</p></div>
+<p style="font-size:44px;width:40px">→</p>
+<div style="flex:1;background:#fbe9c9;padding:28px 32px;border-radius:16px"><p style="font-size:30px;font-weight:500;color:#633806">CloudWatch</p></div>
+<p style="font-size:44px;width:40px">→</p>
+<div style="flex:1;background:#fbe9c9;padding:28px 32px;border-radius:16px"><p style="font-size:30px;font-weight:500;color:#633806">SNS</p></div>
+<p style="font-size:44px;width:40px">→</p>
+<div style="flex:1;background:#fbe9c9;padding:28px 32px;border-radius:16px"><p style="font-size:30px;font-weight:500;color:#633806">Alerte email à l'admin</p></div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#4a5566">Portail statique : S3 derrière CloudFront (OAC). Base locale sur EC2 chiffrée par EBS dans le PoC.</p>
+</section>

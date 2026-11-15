@@ -1,0 +1,11 @@
+<section id="actifs" style="background:#f6f4ef;color:#14202e;font-family:Inter, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-family:'Space Grotesk', Inter, sans-serif;font-size:68px;font-weight:700;line-height:1.1">Ce qu'il faut protéger, et par où ça passe</h2>
+<table style="font-size:32px;width:1664px">
+<tr><th>Actif</th><th>Sensibilité</th><th>Flux protégé</th></tr>
+<tr><td>Dossiers médicaux (base)</td><td>Très élevée, santé</td><td>API vers base, TLS</td></tr>
+<tr><td>Documents PDF (S3)</td><td>Très élevée, santé</td><td>API vers S3, SSE-KMS</td></tr>
+<tr><td>Comptes et clés (IAM, KMS)</td><td>Très élevée</td><td>Rôles à moindre privilège</td></tr>
+<tr><td>Portail de rendez-vous</td><td>Moyenne</td><td>Patient vers CloudFront, HTTPS</td></tr>
+<tr><td>Journaux</td><td>Élevée</td><td>Services vers CloudTrail</td></tr>
+</table>
+</section>

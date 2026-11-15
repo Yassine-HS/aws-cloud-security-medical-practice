@@ -1,0 +1,18 @@
+<section id="risques" style="background:#0f1b2d;color:#f2efe8;font-family:Inter, sans-serif;padding:128px 128px 160px;display:flex;flex-direction:column;gap:48px">
+<h2 style="font-family:'Space Grotesk', Inter, sans-serif;font-size:68px;font-weight:700;line-height:1.1">Quatre risques de criticité 12 guident l'architecture</h2>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px">
+<div style="display:flex;flex-direction:column;gap:12px;background:#17283f;padding:40px;border:1px solid #2b4263;border-radius:16px">
+<h3 style="font-size:34px;font-weight:600;color:#f0b04a">Bucket S3 public</h3>
+<p style="font-size:30px;line-height:1.35">Block Public Access, accès uniquement via CloudFront</p></div>
+<div style="display:flex;flex-direction:column;gap:12px;background:#17283f;padding:40px;border:1px solid #2b4263;border-radius:16px">
+<h3 style="font-size:34px;font-weight:600;color:#f0b04a">Compte administrateur compromis</h3>
+<p style="font-size:30px;line-height:1.35">MFA (cible), moindre privilège, alertes CloudTrail</p></div>
+<div style="display:flex;flex-direction:column;gap:12px;background:#17283f;padding:40px;border:1px solid #2b4263;border-radius:16px">
+<h3 style="font-size:34px;font-weight:600;color:#f0b04a">Clé d'accès exposée</h3>
+<p style="font-size:30px;line-height:1.35">Rôles IAM, aucune clé dans le code</p></div>
+<div style="display:flex;flex-direction:column;gap:12px;background:#17283f;padding:40px;border:1px solid #2b4263;border-radius:16px">
+<h3 style="font-size:34px;font-weight:600;color:#f0b04a">Ransomware ou panne du serveur</h3>
+<p style="font-size:30px;line-height:1.35">Migration cloud, snapshots, versioning S3</p></div>
+</div>
+<p style="position:absolute;left:128px;bottom:64px;width:1664px;font-size:24px;color:#2fc4a8">11 risques analysés, aucun au-dessus de 6 après traitement</p>
+</section>

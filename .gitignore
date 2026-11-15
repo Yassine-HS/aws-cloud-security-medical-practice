@@ -1,0 +1,13 @@
+# Credentials and local secrets
+.env
+*.pem
+*.key
+credentials*
+# Generated / local files
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+*.zip
+# Report and screenshots are added only after redaction (see README)
+report/*.docx

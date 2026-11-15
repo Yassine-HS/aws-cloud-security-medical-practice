@@ -1,0 +1,334 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  PoC cabinet medical - VPC, ALB public, EC2 prive (sans SSH ni SSM),
+  NAT Gateway optionnel, application Flask minimale avec donnees fictives.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: cabinet-medical
+  DeployNat:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: true = cree le NAT Gateway (facture a l'heure). false = le supprime.
+  CloudFrontPrefixListId:
+    Type: String
+    Default: pl-3b927c52
+    Description: ID de la prefix list com.amazonaws.global.cloudfront.origin-facing (verifier dans VPC > Managed prefix lists).
+  MyIpCidr:
+    Type: String
+    Default: ''
+    Description: Optionnel. Votre IP publique en /32 pour tester l'ALB en direct avant CloudFront. A vider ensuite.
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues: [t3.micro, t3.small, t2.micro]
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+
+Conditions:
+  CreateNat: !Equals [!Ref DeployNat, 'true']
+  HasMyIp: !Not [!Equals [!Ref MyIpCidr, '']]
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-vpc'
+
+  Igw:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-igw'
+
+  IgwAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref Igw
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-public-a'
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-public-b'
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.11.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-private-a'
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-public-rt'
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: IgwAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref Igw
+
+  PublicSubnetARouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetBRouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-private-rt'
+
+  PrivateSubnetARouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+
+  NatEip:
+    Type: AWS::EC2::EIP
+    Condition: CreateNat
+    DependsOn: IgwAttachment
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Condition: CreateNat
+    Properties:
+      AllocationId: !GetAtt NatEip.AllocationId
+      SubnetId: !Ref PublicSubnetA
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-nat'
+
+  PrivateDefaultRoute:
+    Type: AWS::EC2::Route
+    Condition: CreateNat
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  S3GatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref Vpc
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref PrivateRouteTable
+
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ALB - HTTP depuis CloudFront uniquement
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourcePrefixListId: !Ref CloudFrontPrefixListId
+          Description: CloudFront origin-facing
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-alb-sg'
+
+  AlbTestIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: HasMyIp
+    Properties:
+      GroupId: !Ref AlbSecurityGroup
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      CidrIp: !Ref MyIpCidr
+      Description: Test temporaire depuis mon IP
+
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EC2 API - trafic depuis ALB uniquement
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+          Description: ALB vers application
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-app-sg'
+
+  AppInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      SubnetId: !Ref PrivateSubnetA
+      SecurityGroupIds:
+        - !Ref AppSecurityGroup
+      MetadataOptions:
+        HttpTokens: required
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-api'
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          exec > /var/log/user-data.log 2>&1
+          for i in $(seq 1 30); do
+            dnf install -y python3-pip && pip3 install flask && break
+            echo "Pas encore de sortie Internet (NAT), nouvel essai $i"
+            sleep 20
+          done
+          mkdir -p /opt/app
+          cat > /opt/app/app.py <<'PYEOF'
+          from flask import Flask, request
+          from markupsafe import escape
+          import logging
+
+          app = Flask(__name__)
+          logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+          PAGE = "<html><head><meta charset='utf-8'></head><body style='font-family:sans-serif'><h1>Cabinet Medical Ibn Sina</h1>{}</body></html>"
+
+          def client_ip():
+              return request.headers.get("X-Forwarded-For", request.remote_addr)
+
+          @app.route("/")
+          def home():
+              return PAGE.format("<p>Prise de rendez-vous en ligne (PoC, donnees fictives)</p><a href='/login'>Espace professionnel</a> | <a href='/search?q='>Rechercher un patient</a>")
+
+          @app.route("/health")
+          def health():
+              return "ok"
+
+          @app.route("/login", methods=["GET", "POST"])
+          def login():
+              if request.method == "POST":
+                  user = request.form.get("user", "")
+                  password = request.form.get("password", "")
+                  if user == "docteur" and password == "Demo-Only-2026":
+                      app.logger.info("LOGIN OK user=%s ip=%s", user, client_ip())
+                      return PAGE.format("<p>Bienvenue, docteur.</p>")
+                  app.logger.warning("LOGIN FAILED user=%s ip=%s", user, client_ip())
+                  return PAGE.format("<p>Identifiants invalides.</p>"), 401
+              return PAGE.format("<form method='post'><input name='user' placeholder='utilisateur'> <input name='password' type='password' placeholder='mot de passe'> <button>Connexion</button></form>")
+
+          @app.route("/search")
+          def search():
+              q = request.args.get("q", "")
+              return PAGE.format("<p>Resultats pour : %s</p><p>Aucun patient trouve (donnees fictives).</p>" % escape(q))
+          PYEOF
+          cat > /etc/systemd/system/cabinet-app.service <<'SVCEOF'
+          [Unit]
+          Description=Application PoC cabinet medical
+          After=network-online.target
+
+          [Service]
+          WorkingDirectory=/opt/app
+          ExecStart=/usr/bin/python3 -m flask --app app run --host 0.0.0.0 --port 8080
+          Restart=always
+          User=nobody
+
+          [Install]
+          WantedBy=multi-user.target
+          SVCEOF
+          systemctl daemon-reload
+          systemctl enable --now cabinet-app
+
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn: IgwAttachment
+    Properties:
+      Type: application
+      Scheme: internet-facing
+      Subnets:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetB
+      SecurityGroups:
+        - !Ref AlbSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-alb'
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref Vpc
+      Protocol: HTTP
+      Port: 8080
+      TargetType: instance
+      HealthCheckPath: /health
+      Targets:
+        - Id: !Ref AppInstance
+          Port: 8080
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+Outputs:
+  AlbDnsName:
+    Description: Origine a donner a CloudFront
+    Value: !GetAtt Alb.DNSName
+  InstanceId:
+    Value: !Ref AppInstance
+  VpcId:
+    Value: !Ref Vpc
